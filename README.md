@@ -1,0 +1,1 @@
+# azure-message-queue-terraform-vcs-example
