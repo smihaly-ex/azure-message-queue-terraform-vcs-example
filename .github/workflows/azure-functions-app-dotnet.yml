@@ -3,7 +3,7 @@ name: Deploy Azure Functions with Terraform
 on:
   push:
     branches:
-      - master  # Trigger the workflow on push to the master branch
+      - main  # Trigger the workflow on push to the main branch
 
 env:
   DOTNET_SENDER_FUNC_WORKING_DIR: "./Azure.MessageQueue/Sender"
