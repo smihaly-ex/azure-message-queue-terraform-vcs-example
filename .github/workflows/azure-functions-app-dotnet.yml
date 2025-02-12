@@ -1,0 +1,116 @@
+name: Deploy Azure Functions with Terraform
+
+on:
+  push:
+    branches:
+      - master  # Trigger the workflow on push to the main branch
+
+env:
+  DOTNET_SENDER_FUNC_WORKING_DIR: "./Azure.MessageQueue/Sender"
+  DOTNET_RECEIVER_FUNC_WORKING_DIR: "./Azure.MessageQueue/Receiver"
+  SENDER_APP_NAME: "sender-function-app"
+  RECEIVER_APP_NAME: "receiver-function-app"
+  AZURE_RESOURCE_GROUP: "message-resource-group"
+  DOTNET_VERSION: "8.x"
+
+permissions:
+    id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup DotNet Environment
+      uses: actions/setup-dotnet@v4
+      with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          
+    # Restore dependencies for the solution
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    # Build the solution 
+    - name: Build the solution
+      run: dotnet build --configuration Release --no-restore
+
+    # Publish the function apps
+    # Sender Function
+    - name: Publish Sender Function
+      run: dotnet publish Sender.csproj -c Release -o ./publish
+      working-directory: ${{ env.DOTNET_SENDER_FUNC_WORKING_DIR }}
+
+    - name: Generate Deployment Package for Sender Function
+      run: |
+        zip -r ../deployment.zip ./
+      working-directory: ${{ env.DOTNET_SENDER_FUNC_WORKING_DIR }}/publish
+
+    - name: Upload Deployment Package for Sender Function
+      uses: actions/upload-artifact@v4
+      with:
+        name: function-deployment-sender
+        path: ${{ env.DOTNET_SENDER_FUNC_WORKING_DIR }}/deployment.zip
+    
+    # Receiver Function
+    - name: Publish Receiver Function
+      run: dotnet publish Receiver.csproj -c Release -o ./publish
+      working-directory: ${{ env.DOTNET_RECEIVER_FUNC_WORKING_DIR }}
+
+    - name: Generate Deployment Package for Receiver Function
+      run: |
+        zip -r ../deployment.zip ./
+      working-directory: ${{ env.DOTNET_RECEIVER_FUNC_WORKING_DIR }}/publish
+
+    - name: Upload Deployment Package for Receiver Function
+      uses: actions/upload-artifact@v4
+      with:
+        name: function-deployment-receiver
+        path: ${{ env.DOTNET_RECEIVER_FUNC_WORKING_DIR }}/deployment.zip
+        
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_AD_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_AD_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Download Deployment Package for Sender Function
+        uses: actions/download-artifact@v4
+        with:
+          name: function-deployment-sender
+          path: ${{ env.DOTNET_SENDER_FUNC_WORKING_DIR }}
+
+      - name: Set linuxFxVersion for Sender Function
+        run: |
+          az functionapp config set --name ${{ env.SENDER_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --linux-fx-version "DOTNET-ISOLATED|8.0"
+
+      - name: Deploy Sender Function
+        run: |
+          az functionapp deployment source config-zip --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.SENDER_APP_NAME }} --src ${{ env.DOTNET_SENDER_FUNC_WORKING_DIR }}/deployment.zip
+
+      - name: Download Deployment Package for Receiver Function
+        uses: actions/download-artifact@v4
+        with:
+          name: function-deployment-receiver
+          path: ${{ env.DOTNET_RECEIVER_FUNC_WORKING_DIR }}
+
+      - name: Set linuxFxVersion for Receiver Function
+        run: |
+          az functionapp config set --name ${{ env.RECEIVER_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --linux-fx-version "DOTNET-ISOLATED|8.0"
+      
+      - name: Deploy Receiver Function
+        run: |
+          az functionapp deployment source config-zip --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.RECEIVER_APP_NAME }} --src ${{ env.DOTNET_RECEIVER_FUNC_WORKING_DIR }}/deployment.zip
+    
