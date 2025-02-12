@@ -8,6 +8,7 @@ on:
 env:
   DOTNET_SENDER_FUNC_WORKING_DIR: "./Azure.MessageQueue/Sender"
   DOTNET_RECEIVER_FUNC_WORKING_DIR: "./Azure.MessageQueue/Receiver"
+  SOLUTION_WORKING_DIR: "./Azure.MessageQueue"
   SENDER_APP_NAME: "sender-function-app"
   RECEIVER_APP_NAME: "receiver-function-app"
   AZURE_RESOURCE_GROUP: "message-resource-group"
@@ -37,10 +38,12 @@ jobs:
     # Restore dependencies for the solution
     - name: Restore dependencies
       run: dotnet restore
+      working-directory: ${{ env.SOLUTION_WORKING_DIR }}
       
     # Build the solution 
     - name: Build the solution
       run: dotnet build --configuration Release --no-restore
+      working-directory: ${{ env.SOLUTION_WORKING_DIR }}
 
     # Publish the function apps
     # Sender Function
