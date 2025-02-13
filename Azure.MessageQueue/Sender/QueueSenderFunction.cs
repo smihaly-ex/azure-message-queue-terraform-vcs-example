@@ -18,6 +18,7 @@ namespace Sender
             _queueClient = new QueueClient(connectionString, queueName);
         }
 
+        // Function to send a message to the queue
         [Function("QueueSenderFunction")]
         public async Task<IActionResult> SendMessage(
             [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "send")] HttpRequestData req,

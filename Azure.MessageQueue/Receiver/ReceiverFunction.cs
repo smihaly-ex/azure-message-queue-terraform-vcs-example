@@ -12,6 +12,7 @@ namespace Receiver
             _logger = logger;
         }
 
+        // Function to receive a message from the queue
         [Function(nameof(ReceiverFunction))]
         public void Run([QueueTrigger("%QUEUE_NAME%", Connection = "AzureWebJobsStorage")] string message)
         {
